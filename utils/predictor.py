@@ -311,8 +311,15 @@ class Predictor():
             print('ERROR: Video stream not opened')
             exit()
 
+            
+        i = 0
         while(cap.isOpened()):
             _, image = cap.read()
+            if image is None:
+                exit()
+            if(i%10==0):
+                b = 'On frame: ' + str(i)
+                print (b, end='\r')
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             cpu_image = Image.fromarray(image)
         
@@ -332,6 +339,7 @@ class Predictor():
                 pred_labels = self.predict_look_alexnet(boxes, cpu_image)
             
             self.render_video(pifpaf_outs['image'], boxes, keypoints, pred_labels, output_video, transparency, eyecontact_thresh)
+            i+=1
 
     def start_predict(self, args):
         if(args.video):
