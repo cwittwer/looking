@@ -208,11 +208,47 @@ class Predictor():
         open_cv_image = cv2.addWeighted(open_cv_image, 1, mask, transparency, 1.0)
         cv2.imwrite(os.path.join(self.path_out, image_name[:-4]+'.predictions.png'), open_cv_image)
 
+    def render_video(self, image, bbox, keypoints, pred_labels, output_video, transparency, eyecontact_thresh):
+        open_cv_image = np.array(image) 
+        open_cv_image = open_cv_image[:, :, ::-1].copy()
+        
+        scale = 0.007
+        imageWidth, imageHeight, _ = open_cv_image.shape
+        font_scale = min(imageWidth,imageHeight)/(10/scale)
+
+
+        mask = np.zeros(open_cv_image.shape, dtype=np.uint8)
+        for i, label in enumerate(pred_labels):
+
+            if label > eyecontact_thresh:
+                color = (0,255,0)
+            else:
+                color = (0,0,255)
+            mask = draw_skeleton(mask, keypoints[i], color)
+        mask = cv2.erode(mask,(7,7),iterations = 1)
+        mask = cv2.GaussianBlur(mask,(3,3),0)
+        #open_cv_image = cv2.addWeighted(open_cv_image, 0.5, np.ones(open_cv_image.shape, dtype=np.uint8)*255, 0.5, 1.0)
+        #open_cv_image = cv2.addWeighted(open_cv_image, 0.5, np.zeros(open_cv_image.shape, dtype=np.uint8), 0.5, 1.0)
+        open_cv_image = cv2.addWeighted(open_cv_image, 1, mask, transparency, 1.0)
+        output_video.write(open_cv_image)
+        cv2.imshow('Prediction',open_cv_image)
+        cv2.waitKey(1)
+    
+    def vid_to_array(self, vid_path):
+        array_im = []
+        vid = cv2.VideoCapture(vid_path)
+        while True:
+            read, frame = vid.read()
+            if not read: break
+            array_im.append(frame)
+        return array_im
+
 
     def predict(self, args):
         transparency = args.transparency
         eyecontact_thresh = args.looking_threshold
-        
+        print("In predict")
+        print(args.glob)
         if args.glob:
             array_im = glob(os.path.join(args.images[0], '*'+args.glob))
         else:
@@ -231,6 +267,7 @@ class Predictor():
             
             im_name = os.path.basename(meta_batch['file_name'])
             im_size = (cpu_image.size[0], cpu_image.size[1])
+            print(pifpaf_outs['json_data'])
             boxes, keypoints = preprocess_pifpaf(pifpaf_outs['json_data'], im_size, enlarge_boxes=False)
             if self.mode == 'joints':
                 pred_labels = self.predict_look(boxes, keypoints, im_size)
@@ -254,3 +291,49 @@ class Predictor():
             print('Av. inference time : {} ms. ± {} ms'.format(np.mean(self.inference_time)*1000, np.std(self.inference_time)*1000))
             print('Av. total time : {} ms. ± {} ms'.format(np.mean(self.total_time)*1000, np.std(self.total_time)*1000))
     
+    def predict_video(self, args):
+        transparency = args.transparency
+        eyecontact_thresh = args.looking_threshold
+
+        print("In video predictions")
+        print(args.glob)
+        if args.video is None:
+            cap = cv2.VideoCapture(0)
+        else:
+            cap = cv2.VideoCapture(args.video)
+
+        img_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        img_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        output_video = cv2.VideoWriter(self.path_out,cv2.VideoWriter_fourcc(*'MJPG'),cap.get(cv2.CAP_PROP_FPS),(img_width,img_height))
+
+        if(cap.isOpened()==False):
+            print('ERROR: Video stream not opened')
+            exit()
+
+        while(cap.isOpened()):
+            _, image = cap.read()
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            cpu_image = Image.fromarray(image)
+        
+            pp_predictions, pp_anns, pp_meta = self.predictor_.numpy_image(image)
+
+            pifpaf_outs = {
+                'json_data' : [ann.json_data() for ann in pp_predictions],
+                'image' : cpu_image
+            }
+            #print(pifpaf_outs['json_data'])
+
+            im_size = (cpu_image.size[0], cpu_image.size[1])
+            boxes, keypoints = preprocess_pifpaf(pifpaf_outs['json_data'], im_size, enlarge_boxes=False)
+            if self.mode == 'joints':
+                pred_labels = self.predict_look(boxes, keypoints, im_size)
+            else:
+                pred_labels = self.predict_look_alexnet(boxes, cpu_image)
+            
+            self.render_video(pifpaf_outs['image'], boxes, keypoints, pred_labels, output_video, transparency, eyecontact_thresh)
+
+    def start_predict(self, args):
+        if(args.video):
+            self.predict_video(args)
+        else:
+            self.predict(args)

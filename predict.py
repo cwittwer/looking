@@ -8,6 +8,9 @@ parser.add_argument('--looking_threshold', default=0.5, type=float, help='eye co
 parser.add_argument('--mode', default='joints', type=str, help='prediction mode')
 parser.add_argument('--time', action='store_true', help='track comptutational time')
 parser.add_argument('--glob', help='glob expression for input images (for many images)')
+parser.add_argument('--video', help='path to video file')
+parser.add_argument('--output', help='path to save video, default is ./output/output_video.avi')
+
 
 # Pifpaf args
 
@@ -30,4 +33,5 @@ visualizer.cli(parser)
 args = parser.parse_args()
 
 predictor = Predictor(args)
-predictor.predict(args)
+predictor.start_predict(args)
+#predictor.predict(args)

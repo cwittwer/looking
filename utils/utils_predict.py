@@ -131,7 +131,7 @@ def preprocess_pifpaf(annotations, im_size=None, enlarge_boxes=True, min_conf=0.
     return boxes, keypoints
 
 def filecreation(dirname):
-    mydir = os.path.join(dirname,'_'+datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+    mydir = os.path.join(dirname,'output_'+datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
     try:
         os.makedirs(mydir)
     except OSError as e:
