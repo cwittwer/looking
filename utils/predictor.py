@@ -231,8 +231,8 @@ class Predictor():
         #open_cv_image = cv2.addWeighted(open_cv_image, 0.5, np.zeros(open_cv_image.shape, dtype=np.uint8), 0.5, 1.0)
         open_cv_image = cv2.addWeighted(open_cv_image, 1, mask, transparency, 1.0)
         output_video.write(open_cv_image)
-        cv2.imshow('Prediction',open_cv_image)
-        cv2.waitKey(1)
+        #cv2.imshow('Prediction',open_cv_image)
+        #cv2.waitKey(1)
     
     def vid_to_array(self, vid_path):
         array_im = []
