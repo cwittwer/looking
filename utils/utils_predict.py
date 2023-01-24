@@ -133,7 +133,8 @@ def preprocess_pifpaf(annotations, im_size=None, enlarge_boxes=True, min_conf=0.
 def filecreation(dirname):
     mydir = os.path.join(dirname,'output_'+datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
     try:
-        os.makedirs(mydir)
+        pass
+        #os.makedirs(mydir)
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise  # This was not a "directory exist" error..

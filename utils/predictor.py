@@ -304,7 +304,8 @@ class Predictor():
 
         img_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         img_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        output_video = cv2.VideoWriter(self.path_out,cv2.VideoWriter_fourcc(*'MJPG'),cap.get(cv2.CAP_PROP_FPS),(img_width,img_height))
+        print(self.path_out+'.avi')
+        output_video = cv2.VideoWriter(self.path_out+'.avi',cv2.VideoWriter_fourcc(*'MJPG'),cap.get(cv2.CAP_PROP_FPS),(img_width,img_height))
 
         if(cap.isOpened()==False):
             print('ERROR: Video stream not opened')
