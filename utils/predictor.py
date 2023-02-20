@@ -10,6 +10,10 @@ from glob import glob
 from tqdm import tqdm
 import openpifpaf.datasets as datasets
 import time
+import imagezmq as iz
+import socket
+import threading
+from queue import Queue
 
 from utils.dataset import *
 from utils.network import *
@@ -26,6 +30,10 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 print('OpenPifPaf version', openpifpaf.__version__)
 print('PyTorch version', torch.__version__)
 
+image_hub = iz.ImageHub(open_port='tcp://*:5559')
+sender = iz.ImageSender(connect_to='tcp://192.168.133.64:5556')
+
+name_host=socket.gethostname()
 
 class Predictor():
     """
@@ -233,6 +241,26 @@ class Predictor():
         output_video.write(open_cv_image)
         #cv2.imshow('Prediction',open_cv_image)
         #cv2.waitKey(1)
+
+    def render_image_return(self, image, bbox, keypoints, pred_labels, transparency, eyecontact_thresh):
+        open_cv_image = np.array(image) 
+        open_cv_image = open_cv_image[:, :, ::-1].copy()
+        
+        scale = 0.007
+        imageWidth, imageHeight, _ = open_cv_image.shape
+        font_scale = min(imageWidth,imageHeight)/(10/scale)
+
+        mask = np.zeros(open_cv_image.shape, dtype=np.uint8)
+        for i, label in enumerate(pred_labels):
+            if label > eyecontact_thresh:
+                color = (0,255,0)
+            else:
+                color = (0,0,255)
+            mask = draw_skeleton(mask, keypoints[i], color)
+        mask = cv2.erode(mask,(7,7),iterations = 1)
+        mask = cv2.GaussianBlur(mask,(3,3),0)
+        open_cv_image = cv2.addWeighted(open_cv_image, 1, mask, transparency, 1.0)
+        return open_cv_image
     
     def vid_to_array(self, vid_path):
         array_im = []
@@ -341,8 +369,70 @@ class Predictor():
             self.render_video(pifpaf_outs['image'], boxes, keypoints, pred_labels, output_video, transparency, eyecontact_thresh)
             i+=1
 
+    def predict_stream(self, args):
+        transparency = args.transparency
+        eyecontact_thresh = args.looking_threshold
+
+        print("In stream predictions")
+        print(args.glob)
+
+        global q
+        q = Queue()
+            
+        i = 0
+        while(True):
+
+            while q.qsize() > 1:
+                q.get()
+            
+            if not q.empty():
+                image = q.get()
+                if image is None:
+                    exit()
+                if(i%10==0):
+                    b = 'On frame: ' + str(i)
+                    print (b, end='\r')
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                cpu_image = Image.fromarray(image)
+            
+                pp_predictions, pp_anns, pp_meta = self.predictor_.numpy_image(image)
+
+                pifpaf_outs = {
+                    'json_data' : [ann.json_data() for ann in pp_predictions],
+                    'image' : cpu_image
+                }
+                #print(pifpaf_outs['json_data'])
+
+                im_size = (cpu_image.size[0], cpu_image.size[1])
+                boxes, keypoints = preprocess_pifpaf(pifpaf_outs['json_data'], im_size, enlarge_boxes=False)
+                if self.mode == 'joints':
+                    pred_labels = self.predict_look(boxes, keypoints, im_size)
+                else:
+                    pred_labels = self.predict_look_alexnet(boxes, cpu_image)
+                
+                image_send = self.render_image_return(pifpaf_outs['image'], boxes, keypoints, pred_labels, transparency, eyecontact_thresh)
+                sender.send_image(name_host, image_send)
+                i+=1
+
     def start_predict(self, args):
-        if(args.video):
+        if(args.stream):
+            x = threading.thread(target=self.predict_stream, args=(args,))
+            x.start()
+            #self.predict_stream(args)
+            try:
+                while True:
+                    name, image = image_hub.recv_image()
+                    q.put(image)
+                    
+                    image_hub.send_reply(b'ok')
+                    c = cv2.waitKey(1)
+            except KeyboardInterrupt:
+                x.join()
+                exit()
+            except:
+                x.join()
+                exit()
+        elif(args.video):
             self.predict_video(args)
         else:
             self.predict(args)
