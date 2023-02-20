@@ -10,6 +10,7 @@ parser.add_argument('--time', action='store_true', help='track comptutational ti
 parser.add_argument('--glob', help='glob expression for input images (for many images)')
 parser.add_argument('--video', help='path to video file')
 parser.add_argument('--output', help='path to save video, default is ./output/output_video.avi')
+parser.add_argument('-s', '--stream', help='for streaming video')
 
 
 # Pifpaf args
