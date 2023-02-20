@@ -416,7 +416,7 @@ class Predictor():
 
     def start_predict(self, args):
         if(args.stream):
-            x = threading.thread(target=self.predict_stream, args=(args,))
+            x = threading.Thread(target=self.predict_stream, args=(args,))
             x.start()
             #self.predict_stream(args)
             try:
